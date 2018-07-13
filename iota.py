@@ -10,6 +10,12 @@ class Iota:
     outlet2 = "off"
     motion = "false"
     temperature = 0.0
+    thingEndpoint = "a3lybv9v64fkof.iot.us-west-2.amazonaws.com"
+    credentialFiles = (
+        "/home/dennis/.aws/aws-iot-root-ca.pem",
+        "/home/dennis/.aws/b498bb82fa-private.pem.key",
+        "/home/dennis/.aws/b498bb82fa-certificate.pem.crt"
+    )
 
     def __init__(self):
         pass
@@ -26,13 +32,9 @@ class Iota:
 
     def connect(self):
         self.log.info('init(): connecting to AWS Shadow')
-        thingEndpoint="a3lybv9v64fkof.iot.us-west-2.amazonaws.com"
         self.client = AWSIoTMQTTShadowClient("iota")
-        self.client.configureEndpoint(thingEndpoint, 8883)
-        self.client.configureCredentials(
-            "/home/dennis/.aws/aws-iot-root-ca.pem",
-            "/home/dennis/.aws/b498bb82fa-private.pem.key",
-            "/home/dennis/.aws/b498bb82fa-certificate.pem.crt")
+        self.client.configureEndpoint(self.thingEndpoint, 8883)
+        self.client.configureCredentials( *self.credentialFiles )
         self.client.configureConnectDisconnectTimeout(10)  # 10 sec
         self.client.configureMQTTOperationTimeout(5)  # 5 sec
         self.client.connect()

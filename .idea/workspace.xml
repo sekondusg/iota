@@ -2,8 +2,6 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="4ee85f22-d76d-405d-b755-ad2f6cb91df0" name="Default" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/iota.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/iota.ipynb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/iota.py" beforeDir="false" afterPath="$PROJECT_DIR$/iota.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -18,11 +16,8 @@
       <file leaf-file-name="iota.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/iota.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="900">
-              <caret line="73" column="41" selection-start-line="73" selection-start-column="41" selection-end-line="73" selection-end-column="41" />
-              <folding>
-                <element signature="e#0#58#0" expanded="true" />
-              </folding>
+            <state relative-caret-position="-2035">
+              <caret column="58" selection-start-column="36" selection-end-column="58" />
             </state>
           </provider>
         </entry>
@@ -128,11 +123,8 @@
   <component name="editorHistoryManager">
     <entry file="file://$PROJECT_DIR$/iota.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="900">
-          <caret line="73" column="41" selection-start-line="73" selection-start-column="41" selection-end-line="73" selection-end-column="41" />
-          <folding>
-            <element signature="e#0#58#0" expanded="true" />
-          </folding>
+        <state relative-caret-position="-2035">
+          <caret column="58" selection-start-column="36" selection-end-column="58" />
         </state>
       </provider>
     </entry>
