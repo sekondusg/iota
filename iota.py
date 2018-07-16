@@ -1,8 +1,8 @@
-from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTShadowClient
-import logging
 import json
+import logging
 import threading
-
+import sys
+from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTShadowClient
 
 
 class Iota:
@@ -11,23 +11,30 @@ class Iota:
     motion = "false"
     temperature = 0.0
     thingEndpoint = "a3lybv9v64fkof.iot.us-west-2.amazonaws.com"
+    awsDir = "/home/dennis/.aws"
+    awsDir = "/users/denni/aws"
     credentialFiles = (
-        "/home/dennis/.aws/aws-iot-root-ca.pem",
-        "/home/dennis/.aws/b498bb82fa-private.pem.key",
-        "/home/dennis/.aws/b498bb82fa-certificate.pem.crt"
+        awsDir + "/aws-iot-root-ca.pem",
+        awsDir + "/b498bb82fa-private.pem.key",
+        awsDir + "/b498bb82fa-certificate.pem.crt"
     )
 
     def __init__(self):
         pass
 
-        logging.basicConfig(filename='iota.log', level=logging.DEBUG)
+        #logging.basicConfig(filename='iota.log', level=logging.DEBUG)
+        logging.basicConfig(stream=sys.stdout, level=logging.INFO)
         self.log = logging
         self.log.info('init(): creating an instance of Iota')
-        self.log.info('init(): retrieving AWS Shadow')
         self.connect()
+        self.log.info('init(): retrieving AWS Shadow')
+        self.shadow = self.client.createShadowHandlerWithName("iota", True)
+        self.log.info('init(): registering delta callback')
+        #self.shadow.shadowRegisterDeltaCallback(onDelta)
+        self.log.info('init(): Iota created')
 
     def __del__(self):
-        #print("del(): disconnecting")
+        self.log.info("del(): disconnecting")
         self.disconnect()
 
     def connect(self):
@@ -38,7 +45,6 @@ class Iota:
         self.client.configureConnectDisconnectTimeout(10)  # 10 sec
         self.client.configureMQTTOperationTimeout(5)  # 5 sec
         self.client.connect()
-        self.shadow = self.client.createShadowHandlerWithName("iota", True)
         self.log.info('init(): connected to AWS Shadow')
 
     def disconnect(self):
@@ -49,52 +55,68 @@ class Iota:
 
     def onResponse(self, payload, responseStatus, token):
         try:
-            print("iota.onResponse(): responseStatus: " + responseStatus)
+            self.log.info("iota.onResponse(): responseStatus: " + responseStatus)
             # logging.debug("iota.onResponse(): responseStatus: " + responseStatus)
 
-            isChange = False
             response = json.loads(payload)
             pretty = json.dumps(response, indent=4)
 
-            if 'delta' in response['state']:
-                for delta in response['state']['delta'].keys():
-                    if delta == "outlet1":
-                        value = response['state']['delta'][delta]
-                        if value in ['on', 'off']:
-                            self.setOutlet1(value)
-                            isChange = True
-                        else:
-                            print('onResponse() invalid value for delta update to: ' + str(value))
-                    elif delta == "outlet2":
-                        value = response['state']['delta'][delta]
-                        if value in ['on', 'off']:
-                            self.setOutlet2(value)
-                            isChange = True
-                        else:
-                            print('onResponse() invalid value for delta update to: ' + str(value))
-            if isChange:
-                self.shadow.shadowUpdate()
 
             self.log.info(
                 "onResponse(): responseStatus: " + str(responseStatus) + ", token: " + str(token) + ", payload: " + str(
                     pretty))
             # logging.debug("onResponse(): responseStatus: " + str(responseStatus) + ", token: " + str(token) + ", payload: " + str(ps))
-            print("iota.onResponse(): payload: " + str(pretty))
+            self.log.info("iota.onResponse(): payload: " + str(pretty))
         except Exception as ex:
-            print("onResponse() exception: " + str(ex))
+            self.log.info("onResponse() exception: " + str(ex))
 
 
     def onDelta(self, payload, responseStatus, token):
         try:
-            print("iota.onDelta(): responseStatus: " + responseStatus)
+            self.log.info("iota.onDelta(): responseStatus: " + responseStatus)
 
-            delta = json.loads(payload)
-            pretty = json.dumps(delta, indent=4)
+            changes = []
+            deltas = json.loads(payload)
+            pretty = json.dumps(deltas, indent=4)
+
+            for delta in deltas['state'].keys():
+                if delta == "outlet1":
+                    value = deltas['state'][delta]
+                    if value in ['on', 'off']:
+                        self.setOutlet1(value)
+                        changes.append((delta, value,))
+                    else:
+                        self.log.info('onDelta() invalid value for delta update to: ' + str(value))
+                elif delta == "outlet2":
+                    value = deltas['state'][delta]
+                    if value in ['on', 'off']:
+                        self.setOutlet2(value)
+                        changes.append((delta, value,))
+                    else:
+                        self.log.info('onDelta() invalid value for delta update to: ' + str(value))
+            if len(changes) > 0:
+                self.log.info('onDelta() detected changes to: ' + str(changes))
+                self.shadowUpdate(changes)
             self.log.info("onDelta(): responseStatus: " + str(responseStatus) + ", token: " + str(token) + ", payload: " + str(pretty))
-            #logging.debug("onResponse(): responseStatus: " + str(responseStatus) + ", token: " + str(token) + ", payload: " + str(ps))
-            print("iota.onDelta(): payload: " + str(pretty))
         except Exception as ex:
-            print("onDelta() exception: " + str(ex))
+            self.log.info("onDelta() exception: " + str(ex))
+
+    def shadowUpdate(self, changes):
+        self.log.info('iota.shadowUpdate(): starting. preparing to update device shadow for changes: ' + str(changes))
+        update = {
+            'state': {
+                    'reported': {},
+                    'desired': {}
+            }
+        }
+
+        for change in changes:
+            update['state']['reported'][change[0]] = change[1]
+
+        doc = json.dumps(update)
+        self.log.info('iota.shadowUpdate(): calling shadow.shadowUpdate. srcJSONPayload: ' + doc)
+        self.shadow.shadowUpdate(doc, onResponse, 5)
+        self.log.info('iota.shadowUpdate(): finished request to update device shadow')
 
 
     def getShadow(self):
