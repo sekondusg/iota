@@ -4,15 +4,20 @@ import threading
 import sys
 from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTShadowClient
 
+from pyfirmata import Arduino, util
+import os
+
 
 class Iota:
+    # Device State
     outlet1 = "off"
     outlet2 = "off"
     motion = "false"
     temperature = 0.0
+
     thingEndpoint = "a3lybv9v64fkof.iot.us-west-2.amazonaws.com"
     awsDir = "/home/dennis/.aws"
-    awsDir = "/users/denni/aws"
+    #awsDir = "/users/denni/aws"
     credentialFiles = (
         awsDir + "/aws-iot-root-ca.pem",
         awsDir + "/b498bb82fa-private.pem.key",
@@ -20,10 +25,9 @@ class Iota:
     )
 
     def __init__(self):
-        pass
 
         #logging.basicConfig(filename='iota.log', level=logging.DEBUG)
-        logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+        logging.basicConfig(stream=sys.__stdout__, level=logging.INFO)
         self.log = logging
         self.log.info('init(): creating an instance of Iota')
         self.connect()
@@ -32,6 +36,28 @@ class Iota:
         self.log.info('init(): registering delta callback')
         #self.shadow.shadowRegisterDeltaCallback(onDelta)
         self.log.info('init(): Iota created')
+
+        # Setup the Arduino Firmata interface
+        self.log.info('init(): setting-up firmata')
+        self.board = None
+        for i in range(0,10):
+            if os.path.exists('/dev/ttyACM' + str(i)):
+                self.log.info('init(): firmata: found serial device: ' + '/dev/ttyACM' + str(i))
+                self.board = Arduino('/dev/ttyACM' + str(i))
+                break
+
+        self.log.info('init(): getting iterator for board')
+        it = util.Iterator(self.board)
+        it.start()
+        self.log.info('init(): started iterator for board')
+        self.board.analog[0].enable_reporting()
+        self.board.analog[1].enable_reporting()
+        self.d7 = self.board.get_pin('d:7:i')
+        self.d8 = self.board.get_pin('d:8:o')
+        self.d9 = self.board.get_pin('d:9:o')
+        self.log.info('init(): finished firmata setup')
+
+
 
     def __del__(self):
         self.log.info("del(): disconnecting")
@@ -120,39 +146,47 @@ class Iota:
 
 
     def getShadow(self):
-        logging.debug("getShadow(): retrieving shadow doc from AWS")
+        logging.info("getShadow(): retrieving shadow doc from AWS")
         shadow = self.shadow.shadowGet(onResponse, 5)
         return(shadow)
 
     def getOutlet1(self):
-        logging.debug("getOutlet1: getting value of outlet1")
+        logging.info("getOutlet1: getting value of outlet1")
         return self.outlet1
 
     def setOutlet1(self, value):
         if value in ['on', 'off']:
-            logging.debug("setOutlet1: setting value of outlet1 to: " + value)
+            logging.info("setOutlet1: setting value of outlet1 to: " + value)
             self.outlet1 = value
+            if value == 'on':
+                self.d8.write(False)
+            else:
+                self.d8.write(True)
         else:
             logging.error("setOutlet1: invalid value given for setting outlet1: " + value)
 
     def getOutlet2(self):
-        logging.debug("getOutlet2: getting value of outlet2")
+        logging.info("getOutlet2: getting value of outlet2")
         return self.outlet2
 
     def setOutlet2(self, value):
         if value in ['on', 'off']:
-            logging.debug("setOutlet2 setting value of outlet2 to: " + value)
+            logging.info("setOutlet2 setting value of outlet2 to: " + value)
             self.outlet2 = value
+            if value == 'on':
+                self.d9.write(False)
+            else:
+                self.d9.write(True)
         else:
             logging.error("setOutlet2: invalid value given for setting outlet2: " + value)
 
     def getMotion(self):
-        logging.debug("getMotion: getting value of motion")
+        logging.info("getMotion: getting value of motion")
         return self.motion
 
     def setMotion(self, value):
         if value in ['true', 'false']:
-            logging.debug("setMotion setting value of motion to: " + value)
+            logging.info("setMotion setting value of motion to: " + value)
             self.motion = value
         else:
             logging.error("setMotion: invalid value given for setting motion: " + value)
