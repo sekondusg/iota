@@ -2,6 +2,9 @@ import json
 import logging
 import threading
 import sys
+import time
+from optparse import OptionParser
+import daemon
 from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTShadowClient
 
 from pyfirmata import Arduino, util
@@ -17,7 +20,7 @@ class Iota:
 
     thingEndpoint = "a3lybv9v64fkof.iot.us-west-2.amazonaws.com"
     awsDir = "/home/dennis/.aws"
-    #awsDir = "/users/denni/aws"
+    # awsDir = "/users/denni/aws"
     credentialFiles = (
         awsDir + "/aws-iot-root-ca.pem",
         awsDir + "/b498bb82fa-private.pem.key",
@@ -26,21 +29,21 @@ class Iota:
 
     def __init__(self):
 
-        #logging.basicConfig(filename='iota.log', level=logging.DEBUG)
-        logging.basicConfig(stream=sys.__stdout__, level=logging.INFO)
+        logging.basicConfig(filename='iota.log', level=logging.DEBUG)
+        #logging.basicConfig(stream=sys.__stdout__, level=logging.INFO)
         self.log = logging
         self.log.info('init(): creating an instance of Iota')
         self.connect()
         self.log.info('init(): retrieving AWS Shadow')
         self.shadow = self.client.createShadowHandlerWithName("iota", True)
         self.log.info('init(): registering delta callback')
-        #self.shadow.shadowRegisterDeltaCallback(onDelta)
+        # self.shadow.shadowRegisterDeltaCallback(onDelta)
         self.log.info('init(): Iota created')
 
         # Setup the Arduino Firmata interface
         self.log.info('init(): setting-up firmata')
         self.board = None
-        for i in range(0,10):
+        for i in range(0, 10):
             if os.path.exists('/dev/ttyACM' + str(i)):
                 self.log.info('init(): firmata: found serial device: ' + '/dev/ttyACM' + str(i))
                 self.board = Arduino('/dev/ttyACM' + str(i))
@@ -57,8 +60,6 @@ class Iota:
         self.d9 = self.board.get_pin('d:9:o')
         self.log.info('init(): finished firmata setup')
 
-
-
     def __del__(self):
         self.log.info("del(): disconnecting")
         self.disconnect()
@@ -67,7 +68,7 @@ class Iota:
         self.log.info('init(): connecting to AWS Shadow')
         self.client = AWSIoTMQTTShadowClient("iota")
         self.client.configureEndpoint(self.thingEndpoint, 8883)
-        self.client.configureCredentials( *self.credentialFiles )
+        self.client.configureCredentials(*self.credentialFiles)
         self.client.configureConnectDisconnectTimeout(10)  # 10 sec
         self.client.configureMQTTOperationTimeout(5)  # 5 sec
         self.client.connect()
@@ -78,7 +79,6 @@ class Iota:
         self.client.disconnect()
         self.log.info('disconnect(): disconnected device client from AWS')
 
-
     def onResponse(self, payload, responseStatus, token):
         try:
             self.log.info("iota.onResponse(): responseStatus: " + responseStatus)
@@ -87,7 +87,6 @@ class Iota:
             response = json.loads(payload)
             pretty = json.dumps(response, indent=4)
 
-
             self.log.info(
                 "onResponse(): responseStatus: " + str(responseStatus) + ", token: " + str(token) + ", payload: " + str(
                     pretty))
@@ -95,7 +94,6 @@ class Iota:
             self.log.info("iota.onResponse(): payload: " + str(pretty))
         except Exception as ex:
             self.log.info("onResponse() exception: " + str(ex))
-
 
     def onDelta(self, payload, responseStatus, token):
         try:
@@ -123,7 +121,9 @@ class Iota:
             if len(changes) > 0:
                 self.log.info('onDelta() detected changes to: ' + str(changes))
                 self.shadowUpdate(changes)
-            self.log.info("onDelta(): responseStatus: " + str(responseStatus) + ", token: " + str(token) + ", payload: " + str(pretty))
+            self.log.info(
+                "onDelta(): responseStatus: " + str(responseStatus) + ", token: " + str(token) + ", payload: " + str(
+                    pretty))
         except Exception as ex:
             self.log.info("onDelta() exception: " + str(ex))
 
@@ -131,8 +131,8 @@ class Iota:
         self.log.info('iota.shadowUpdate(): starting. preparing to update device shadow for changes: ' + str(changes))
         update = {
             'state': {
-                    'reported': {},
-                    'desired': {}
+                'reported': {},
+                'desired': {}
             }
         }
 
@@ -144,11 +144,10 @@ class Iota:
         self.shadow.shadowUpdate(doc, onResponse, 5)
         self.log.info('iota.shadowUpdate(): finished request to update device shadow')
 
-
     def getShadow(self):
         logging.info("getShadow(): retrieving shadow doc from AWS")
         shadow = self.shadow.shadowGet(onResponse, 5)
-        return(shadow)
+        return (shadow)
 
     def getOutlet1(self):
         logging.info("getOutlet1: getting value of outlet1")
@@ -191,9 +190,10 @@ class Iota:
         else:
             logging.error("setMotion: invalid value given for setting motion: " + value)
 
+    def listen(self):
+        while True:
+            time.sleep(1)
 
-
-iota = Iota()
 
 def onResponse(payload, responseStatus, token):
     global iota
@@ -203,6 +203,7 @@ def onResponse(payload, responseStatus, token):
         print("onResponse(): thread spawned by caller")
     except Exception as ex:
         print("onResponse() exception: " + str(ex))
+
 
 def onDelta(payload, responseStatus, token):
     global iota
@@ -214,6 +215,22 @@ def onDelta(payload, responseStatus, token):
         print("onDelta() exception: " + str(ex))
 
 
-#iota.setOutlet1('abc')
-#iota.setOutlet1('off')
-#print('shadow: ' + str(iota.getShadow()))
+# iota = Iota()
+
+if __name__ == '__main__':
+    parser = OptionParser()
+    parser.add_option("-D", "--debug", dest="debug", action='store_true', default=False, help="Run in debug mode")
+    parser.add_option("-f", "--fore", dest="fore", action='store_true', default=False,
+                      help="Run as a foreground process instead of a daemon")
+
+    (options, args) = parser.parse_args()
+
+    if not options.debug:
+        if options.fore:
+            print('\033]0;IoTaAgent\a')
+            iota = Iota()
+            iota.listen()
+        else:
+            with daemon.DaemonContext():
+                iota = Iota()
+                iota.listen()
